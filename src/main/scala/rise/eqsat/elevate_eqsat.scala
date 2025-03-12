@@ -1,14 +1,15 @@
 package rise.eqsat
 
-import elevate.core.strategies.basic._
-import elevate.core.strategies.traversal._
-import elevate.core.strategies.predicate._ 
-import elevate.core.strategies.debug_
+//import elevate.core.strategies.basic._
+//import elevate.core.strategies.traversal._
+//import elevate.core.strategies.predicate._ 
+//import elevate.core.strategies.debug._
 import elevate.core.{Failure, RewriteResult, Strategy, Success}
 import rise.elevate.Rise
 import rise.elevate.rules.traversal._
-import elevate.core.strategies.Traversable
- import elevate.macros.StrategyMacro
+//import elevate.core.strategies.Traversable
+import elevate.macros.StrategyMacro
+// import scala.language.implicitConversions
  
 object elevate_eqsat {
 
@@ -17,23 +18,23 @@ object elevate_eqsat {
     // would be nice to have sketches instead here 
 
     // unsure I should use the macro expansion here
-    @strategy def prove_equiv_BENF(rules: Seq[Rewrites], normRules: Seq[RewriteDirected] = BENF.directedRules): Rise => Strategy[Rise] =
+    // @strategy 
+    def prove_equiv_BENF(rules: Seq[Rewrite], normRules: Seq[RewriteDirected] = BENF.directedRules): Rise => Strategy[Rise] =
         t => p => try {
-            ProveEquiv.init().runBENF(t, p, rules, normRules)
+            ProveEquiv.init().runBENF(ProveEquiv.OneOrMore(Seq(t)), ProveEquiv.OneOrMore(Seq(p)), rules, normRules);
+            Success(p)
         } catch {
-            case e: CouldNotProveEquiv => Failure(prove_equiv_BENF(rules,normRules))
-        } finally {
-            return Success(p)
+            case _ : Exception => Failure(prove_equiv_BENF(rules,normRules)(t)) //CouldNotProveEquiv
         }
     
     // unsure I should use the macro expansion here
-    @strategy def prove_equiv_CNF(rules: Seq[Rewrites], normRules: Seq[RewriteDirected] = BENF.directedRules): Rise => Strategy[Rise] =
+    // @strategy 
+    def prove_equiv_CNF(rules: Seq[Rewrite], normRules: Seq[RewriteDirected] = BENF.directedRules): Rise => Strategy[Rise] =
         t => p => try {
-            ProveEquiv.init().runCNF(t, p, rules, normRules)
+            ProveEquiv.init().runCNF(ProveEquiv.OneOrMore(Seq(t)), ProveEquiv.OneOrMore(Seq(p)), rules, normRules);
+            Success(p)
         } catch {
-            case e: CouldNotProveEquiv => Failure(prove_equiv_CNF(rules, normRules))
-        } finally {
-            return Success(p)
+            case _ : Exception => Failure(prove_equiv_CNF(rules, normRules)(t)) //CouldNotProveEquiv
         }
 
         // idem + informal : it can't work because I am not using any new guides at all
@@ -47,30 +48,31 @@ object elevate_eqsat {
 
     // it is not so satisfying in terms of the syntax. but i need some way to have guides ... 
     // we only deal with concrete terms here. need to implement the same thing for sketches also
-    def guided_prove_equiv_CNF(rules: Seq[Rewrites], normRules: Seq[RewriteDirected] = CNF.directedRules, l: List[Rise]) : Rise = 
+    def guided_prove_equiv_CNF(rules: Seq[Rewrite], normRules: Seq[RewriteDirected] = CNF.directedRules, l: List[Rise]) : RewriteResult[Rise] = 
         l match {
-            case Nil => Failure(guided_prove_equiv_CNF(rules, normRules, l));
-            case head :: Nil => Failure(guided_prove_equiv_CNF(rules, normRules, l));
-            case t :: p :: Nil => prove_equiv_CNF(rules, normRules)(t,p);
-            case t :: p :: tail => prove_equiv_CNF(rules, normRules)(t,p) match {
+            case Nil => Failure(_ => guided_prove_equiv_CNF(rules, normRules, l));
+            case head :: Nil => Failure(head => guided_prove_equiv_CNF(rules, normRules, l));
+            case t :: p :: Nil => prove_equiv_CNF(rules, normRules)(t)(p);
+            case t :: p :: tail => prove_equiv_CNF(rules, normRules)(t)(p) match {
                 case Failure(x) => Failure(x);
                 case Success(term) => guided_prove_equiv_CNF(rules, normRules, (p::tail));
             }
         }
     
-    def guided_prove_equiv_BENF(rules: Seq[Rewrites], normRules: Seq[RewriteDirected] = BENF.directedRules, l: List[Rise]) : Rise = 
+    def guided_prove_equiv_BENF(rules: Seq[Rewrite], normRules: Seq[RewriteDirected] = BENF.directedRules, l: List[Rise]) : RewriteResult[Rise] = 
         l match {
-            case Nil => Failure(guided_prove_equiv_BENF(rules, normRules, l));
-            case head :: Nil => Failure(guided_prove_equiv_BENF(rules, normRules, l));
-            case t :: p :: Nil => prove_equiv_BENF(rules, normRules)(t,p);
-            case t :: p :: tail => prove_equiv_BENF(rules, normRules)(t,p) match {
+            case Nil => Failure(_ => guided_prove_equiv_BENF(rules, normRules, l));
+            case head :: Nil => Failure(head => guided_prove_equiv_BENF(rules, normRules, l));
+            case t :: p :: Nil => prove_equiv_BENF(rules, normRules)(t)(p);
+            case t :: p :: tail => prove_equiv_BENF(rules, normRules)(t)(p) match {
                 case Failure(x) => Failure(x);
                 case Success(_) => guided_prove_equiv_BENF(rules, normRules, (p::tail));
             }
         }
-    // @strategy def guided_prove_equiv  
+
     //we want something like Success(eqsat'(t)) where eqsat'(t) is just the best term found by eqsat
-    @strategy def eqsat(iterations: int): Strategy[Rise] = t => Success(t) 
+    // @strategy 
+    def eqsat(iterations: Int): Strategy[Rise] = t => Success(t) 
 
 }
 
